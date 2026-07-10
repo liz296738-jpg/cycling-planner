@@ -68,13 +68,17 @@ function buildUserMessage(start, end, preferences) {
 
 function parseAndValidate(text) {
   let clean = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
-  clean = clean.replace(/^```[\s\S]*?```$/, m => m.replace(/^```\w*\n?/, '').replace(/\n?```$/, ''));
+  clean = clean.replace(/^```[\s\S]*?```$/, (m) => m.replace(/^```\w*\n?/, '').replace(/\n?```$/, ''));
 
   let data;
   try {
     data = JSON.parse(clean);
   } catch (e) {
-    throw new DeepSeekAPIError('AI 返回的数据格式无效', 502, { raw: text.slice(0, 200) });
+    // retry with more aggressive cleaning
+    clean = clean.replace(/```[\s\S]*$/g, '').replace(/[\x00-\x1F\x7F]+/g, ' ').trim();
+    try { data = JSON.parse(clean); } catch (e2) {
+      throw new DeepSeekAPIError('AI 返回的数据格式无效', 502, { raw: text.slice(0, 200) });
+    }
   }
 
   const required = ['summary', 'coordinates', 'waypoints', 'directions'];
@@ -87,17 +91,24 @@ function parseAndValidate(text) {
   }
 
   for (const coord of data.coordinates) {
-    if (!Array.isArray(coord) || coord.length !== 2
-        || typeof coord[0] !== 'number' || typeof coord[1] !== 'number') {
+    // Accept [lng, lat] or {lng, lat} or {longitude, latitude}
+    let lng, lat;
+    if (Array.isArray(coord)) {
+      [lng, lat] = coord;
+    } else if (coord && typeof coord === 'object') {
+      lng = coord.lng ?? coord.longitude;
+      lat = coord.lat ?? coord.latitude;
+    }
+    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
       throw new DeepSeekAPIError('AI 返回的坐标格式无效', 502);
     }
-    if (coord[0] < 73 || coord[0] > 135 || coord[1] < 18 || coord[1] > 54) {
+    if (lng < 73 || lng > 135 || lat < 18 || lat > 54) {
       throw new DeepSeekAPIError('AI 返回的坐标超出中国范围', 502);
     }
   }
 
   if (!data.summary.totalDistance || data.summary.totalDistance <= 0
-      || data.summary.totalDistance > 200) {
+      || data.summary.totalDistance > 500) {
     throw new DeepSeekAPIError('AI 返回的距离数据不合理', 502);
   }
 
