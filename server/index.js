@@ -18,7 +18,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "https://*.basemaps.cartocdn.com", "data:"],
-      connectSrc: ["'self'", "https://*.basemaps.cartocdn.com"],
+      connectSrc: ["'self'", "https://*.basemaps.cartocdn.com", "https://api.deepseek.com"],
     },
   },
 }));
