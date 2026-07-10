@@ -1,16 +1,5 @@
 const { DeepSeekAPIError } = require('../middleware/errorHandler');
-
-// Use built-in fetch on Node 18+, fall back to node-fetch for older versions
-let fetch;
-if (typeof globalThis.fetch === 'function') {
-  fetch = globalThis.fetch;
-} else {
-  try {
-    fetch = require('node-fetch');
-  } catch (e) {
-    throw new Error('Node.js fetch not available and node-fetch not installed. Upgrade to Node 18+.');
-  }
-}
+const https = require('https');
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const TIMEOUT_MS = 30000;
@@ -128,50 +117,60 @@ function parseAndValidate(text) {
 }
 
 async function callDeepSeek(messages, temperature) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const body = JSON.stringify({
+    model: 'deepseek-chat',
+    messages,
+    response_format: { type: 'json_object' },
+    max_tokens: 4096,
+    temperature,
+  });
 
-  try {
-    const res = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages,
-        response_format: { type: 'json_object' },
-        max_tokens: 4096,
-        temperature,
-      }),
-      signal: controller.signal,
+  const options = {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body).toString(),
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(DEEPSEEK_API_URL, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk.toString(); });
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          console.error('DeepSeek API error response:', res.statusCode, data.slice(0, 500));
+          return reject(new DeepSeekAPIError(
+            `DeepSeek API 错误 (${res.statusCode})`,
+            res.statusCode === 429 ? 429 : 502,
+            data.slice(0, 200)
+          ));
+        }
+        try {
+          const json = JSON.parse(data);
+          const content = json.choices[0].message.content;
+          console.log('DeepSeek raw response:', content.slice(0, 300));
+          resolve(content);
+        } catch (e) {
+          reject(new DeepSeekAPIError('DeepSeek 返回无法解析的响应', 502));
+        }
+      });
     });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.error('DeepSeek API error response:', res.status, errText.slice(0, 500));
-      throw new DeepSeekAPIError(
-        `DeepSeek API 错误 (${res.status})`,
-        res.status === 429 ? 429 : 502,
-        errText.slice(0, 200)
-      );
-    }
+    req.on('error', (e) => {
+      console.error('DeepSeek request error:', e.message);
+      reject(new DeepSeekAPIError(`AI 服务请求失败: ${e.message}`, 502));
+    });
 
-    const json = await res.json();
-    const content = json.choices[0].message.content;
-    console.log('DeepSeek raw response:', content.slice(0, 300));
-    return content;
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      throw new DeepSeekAPIError('AI 服务响应超时，请重试', 504);
-    }
-    if (e instanceof DeepSeekAPIError) throw e;
-    console.error('Unexpected error in callDeepSeek:', e.message, e.stack?.slice(0, 300));
-    throw new DeepSeekAPIError(`AI 服务请求失败: ${e.message}`, 502);
-  } finally {
-    clearTimeout(timeout);
-  }
+    req.setTimeout(TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new DeepSeekAPIError('AI 服务响应超时，请重试', 504));
+    });
+
+    req.write(body);
+    req.end();
+  });
 }
 
 async function generateCyclingRoute(start, end, preferences) {
