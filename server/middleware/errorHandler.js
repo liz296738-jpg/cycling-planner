@@ -7,8 +7,9 @@ const errorHandler = (err, req, res, next) => {
   if (err.name === 'DeepSeekAPIError') {
     return res.status(status).json({
       error: 'AI 服务暂时不可用，请稍后重试',
+      message: err.message,
+      details: err.details,
       status,
-      details: process.env.NODE_ENV === 'development' ? err.details : undefined,
     });
   }
 
