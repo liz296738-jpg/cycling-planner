@@ -1,5 +1,17 @@
 const { DeepSeekAPIError } = require('../middleware/errorHandler');
 
+// Use built-in fetch on Node 18+, fall back to node-fetch for older versions
+let fetch;
+if (typeof globalThis.fetch === 'function') {
+  fetch = globalThis.fetch;
+} else {
+  try {
+    fetch = require('node-fetch');
+  } catch (e) {
+    throw new Error('Node.js fetch not available and node-fetch not installed. Upgrade to Node 18+.');
+  }
+}
+
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const TIMEOUT_MS = 30000;
 
