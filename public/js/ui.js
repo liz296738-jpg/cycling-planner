@@ -1,123 +1,118 @@
 const UI = (() => {
   let toastTimer = null;
 
-  function showToast(message, type) {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    toast.addEventListener('click', () => dismissToast(toast));
-    container.appendChild(toast);
+  const toastEl = () => document.getElementById('toast');
+  const toastMsg = () => document.getElementById('toast-msg');
+  const toastIcon = () => document.getElementById('toast-icon');
 
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => dismissToast(toast), 5000);
+  function showToast(message, isError) {
+    const el = toastEl();
+    const msg = toastMsg();
+    const icon = toastIcon();
+    if (!el || !msg) return;
+
+    msg.textContent = message;
+    el.classList.remove('hidden');
+
+    if (isError === false) {
+      el.classList.remove('border-l-red-500');
+      el.classList.add('border-l-green-500');
+      icon.classList.remove('text-red-500');
+      icon.classList.add('text-green-500');
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>';
+    } else {
+      el.classList.remove('border-l-green-500');
+      el.classList.add('border-l-red-500');
+      icon.classList.remove('text-green-500');
+      icon.classList.add('text-red-500');
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+    }
+
+    setTimeout(() => el.classList.add('toast-show'), 10);
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove('toast-show');
+      setTimeout(() => el.classList.add('hidden'), 500);
+    }, 5000);
   }
 
-  function dismissToast(toast) {
-    toast.classList.add('toast-removing');
-    setTimeout(() => toast.remove(), 300);
-  }
-
-  function showLoading(message) {
+  function setLoading(isLoading) {
     const btn = document.getElementById('plan-btn');
-    btn.disabled = true;
-    btn.querySelector('span').textContent = message || '规划中...';
-    CyclingMap.setLoading(true);
+    const text = document.getElementById('btn-text');
+    if (!btn || !text) return;
+
+    if (isLoading) {
+      btn.disabled = true;
+      btn.classList.add('opacity-80', 'cursor-not-allowed');
+      text.innerHTML = '<span class="loader"></span> AI 正在规划路线...';
+    } else {
+      btn.disabled = false;
+      btn.classList.remove('opacity-80', 'cursor-not-allowed');
+      text.textContent = '开始规划路线';
+    }
   }
 
-  function hideLoading() {
-    const btn = document.getElementById('plan-btn');
-    btn.disabled = false;
-    btn.querySelector('span').textContent = '规划路线';
-    CyclingMap.setLoading(false);
-  }
-
-  function showError(message) {
-    showToast(message, 'error');
-    hideLoading();
-  }
-
-  function showSuccess(message) {
-    showToast(message, 'success');
-  }
-
-  function formatDistance(km) {
-    return km >= 1 ? `${km.toFixed(1)} km` : `${Math.round(km * 1000)} m`;
-  }
-
-  function formatElevation(m) {
-    return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
-  }
-
-  function formatTime(minutes) {
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    return h > 0 ? `${h}h ${m}min` : `${m}min`;
-  }
-
-  function updateRouteDetails(data) {
+  function renderDetails(data) {
     const empty = document.getElementById('details-empty');
     const content = document.getElementById('details-content');
-    empty.style.display = 'none';
-    content.style.display = 'block';
+    if (empty) empty.classList.add('hidden');
+    if (content) content.classList.remove('hidden');
 
-    const { summary, directions, tips } = data;
+    const s = data.summary;
+    document.getElementById('stat-dist').textContent = s.totalDistance;
+    document.getElementById('stat-elev').textContent = s.totalElevationGain;
+    document.getElementById('stat-time').textContent = s.estimatedTime;
+    document.getElementById('stat-diff').textContent = s.difficulty + ' / ' + s.surfaceType;
 
-    document.getElementById('stats-grid').innerHTML = `
-      <div class="stat-card accent">
-        <div class="stat-value">${formatDistance(summary.totalDistance)}</div>
-        <div class="stat-label">总距离</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${formatElevation(summary.totalElevationGain)}</div>
-        <div class="stat-label">累计爬升</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${formatTime(summary.estimatedTime)}</div>
-        <div class="stat-label">预计时间</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${summary.difficulty || '--'}</div>
-        <div class="stat-label">难度</div>
-      </div>
-    `;
+    const dirList = document.getElementById('directions-list');
+    dirList.innerHTML = '';
+    data.directions.forEach((dir, index) => {
+      const isLast = index === data.directions.length - 1;
+      const iconColor = index === 0 ? 'text-nature-500' : (isLast ? 'text-earth-500' : 'text-gray-400');
+      const dotColor = index === 0 ? 'bg-nature-500 border-nature-200' : (isLast ? 'bg-earth-500 border-earth-200' : 'bg-gray-300 border-gray-100');
 
-    if (directions && directions.length > 0) {
-      const maneuvers = { '直行': '↑', '左转': '↰', '右转': '↱', '调头': '↶', '到达': '★' };
-      document.getElementById('directions-list').innerHTML = directions.map((d, i) => `
-        <div class="direction-item">
-          <div class="direction-icon">${maneuvers[d.maneuver] || '→'}</div>
-          <div class="direction-info">
-            <div class="direction-text">${d.instruction}</div>
-            <div class="direction-meta">${d.roadName} · ${d.distance >= 1000 ? (d.distance / 1000).toFixed(1) + ' km' : d.distance + ' m'}</div>
-          </div>
-        </div>
-      `).join('');
+      const li = document.createElement('li');
+      li.className = 'flex items-start gap-4';
+      li.innerHTML = ''
+        + '<div class="relative z-10 mt-1 w-6 h-6 rounded-full border-4 ' + dotColor + ' flex-shrink-0 bg-white"></div>'
+        + '<div class="flex-1 bg-gray-50/50 rounded-xl p-3 border border-gray-100">'
+        +   '<p class="text-sm font-bold text-gray-800">' + dir.instruction + '</p>'
+        +   '<div class="flex items-center gap-3 mt-1 text-xs text-gray-500">'
+        +     '<span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>' + dir.distance + 'm</span>'
+        +     '<span class="bg-gray-200/50 px-1.5 py-0.5 rounded text-gray-600">' + dir.roadName + '</span>'
+        +   '</div>'
+        + '</div>';
+      dirList.appendChild(li);
+    });
+
+    const tipsList = document.getElementById('tips-list');
+    tipsList.innerHTML = '';
+    data.tips.forEach(tip => {
+      const li = document.createElement('li');
+      li.textContent = tip;
+      tipsList.appendChild(li);
+    });
+  }
+
+  function init() {
+    const distSlider = document.getElementById('max-dist');
+    const distVal = document.getElementById('dist-val');
+    const elevSlider = document.getElementById('max-elev');
+    const elevVal = document.getElementById('elev-val');
+
+    if (distSlider && distVal) {
+      distSlider.addEventListener('input', (e) => {
+        distVal.textContent = e.target.value + ' km';
+      });
     }
-
-    if (tips && tips.length > 0) {
-      document.getElementById('tips-list').innerHTML = tips.map(t => `
-        <div class="tip-item">
-          <span class="tip-icon">💡</span>
-          <span>${t}</span>
-        </div>
-      `).join('');
+    if (elevSlider && elevVal) {
+      elevSlider.addEventListener('input', (e) => {
+        const val = e.target.value;
+        elevVal.textContent = val == 0 ? '无限制' : val + ' m';
+      });
     }
   }
 
-  function resetDetails() {
-    document.getElementById('details-empty').style.display = '';
-    document.getElementById('details-content').style.display = 'none';
-  }
-
-  function setFormEnabled(enabled) {
-    const inputs = document.querySelectorAll('#route-form input, #route-form select, #route-form button');
-    inputs.forEach(el => { el.disabled = !enabled; });
-  }
-
-  return {
-    showLoading, hideLoading, showError, showSuccess,
-    updateRouteDetails, resetDetails, setFormEnabled,
-    formatDistance, formatElevation, formatTime,
-  };
+  return { showToast, setLoading, renderDetails, init };
 })();
