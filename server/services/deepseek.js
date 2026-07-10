@@ -154,7 +154,9 @@ async function callDeepSeek(messages, temperature) {
     if (e.name === 'AbortError') {
       throw new DeepSeekAPIError('AI 服务响应超时，请重试', 504);
     }
-    throw e;
+    if (e instanceof DeepSeekAPIError) throw e;
+    console.error('Unexpected error in callDeepSeek:', e.message, e.stack?.slice(0, 300));
+    throw new DeepSeekAPIError(`AI 服务请求失败: ${e.message}`, 502);
   } finally {
     clearTimeout(timeout);
   }
