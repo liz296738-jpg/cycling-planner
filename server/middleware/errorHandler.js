@@ -12,6 +12,7 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  console.error('Unhandled error:', err);
   res.status(status).json({ error: message, status });
 };
 

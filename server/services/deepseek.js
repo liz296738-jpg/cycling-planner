@@ -138,15 +138,18 @@ async function callDeepSeek(messages, temperature) {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
+      console.error('DeepSeek API error response:', res.status, errText.slice(0, 500));
       throw new DeepSeekAPIError(
         `DeepSeek API 错误 (${res.status})`,
         res.status === 429 ? 429 : 502,
-        errText
+        errText.slice(0, 200)
       );
     }
 
     const json = await res.json();
-    return json.choices[0].message.content;
+    const content = json.choices[0].message.content;
+    console.log('DeepSeek raw response:', content.slice(0, 300));
+    return content;
   } catch (e) {
     if (e.name === 'AbortError') {
       throw new DeepSeekAPIError('AI 服务响应超时，请重试', 504);
