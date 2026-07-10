@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 骑行路线规划</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='none' stroke='%2300e676' stroke-width='3'/><circle cx='32' cy='32' r='6' fill='%2300e676'/><line x1='32' y1='32' x2='52' y2='12' stroke='%2300e676' stroke-width='3' stroke-linecap='round'/><line x1='32' y1='32' x2='12' y2='52' stroke='%2300e676' stroke-width='3' stroke-linecap='round'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <svg width="32" height="32" viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="30" fill="none" stroke="#00e676" stroke-width="3"/>
+          <circle cx="32" cy="32" r="6" fill="#00e676"/>
+          <line x1="32" y1="32" x2="52" y2="12" stroke="#00e676" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="32" x2="12" y2="52" stroke="#00e676" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <h1 class="header-title">AI 骑行路线规划</h1>
+      </div>
+      <span class="header-badge">DeepSeek AI</span>
+    </div>
+  </header>
+
+  <main class="main-layout">
+    <aside class="panel panel-left" id="input-panel">
+      <div class="panel-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <h2>路线设置</h2>
+      </div>
+      <form id="route-form" class="route-form">
+        <div class="form-group">
+          <label for="start">起点</label>
+          <div class="input-icon-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="#00e676"><circle cx="12" cy="12" r="4"/></svg>
+            <input type="text" id="start" placeholder="例如：北京天安门" autocomplete="off" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="end">终点</label>
+          <div class="input-icon-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="#ff5252"><circle cx="12" cy="12" r="4"/></svg>
+            <input type="text" id="end" placeholder="例如：颐和园" autocomplete="off" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="max-distance">最大距离 <span class="range-value" id="distance-value">50 km</span></label>
+          <input type="range" id="max-distance" min="5" max="200" value="50" step="5">
+        </div>
+        <div class="form-group">
+          <label for="max-elevation">最大爬升 <span class="range-value" id="elevation-value">无限制</span></label>
+          <input type="range" id="max-elevation" min="0" max="5000" value="0" step="100">
+        </div>
+        <div class="form-group">
+          <label for="surface-type">路面类型</label>
+          <select id="surface-type">
+            <option value="">不限</option>
+            <option value="paved">铺装路面</option>
+            <option value="mixed">混合路面</option>
+            <option value="gravel">碎石路面</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="difficulty">难度</label>
+          <select id="difficulty">
+            <option value="">自动</option>
+            <option value="easy">简单</option>
+            <option value="moderate">中等</option>
+            <option value="challenging">困难</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-plan" id="plan-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <span>规划路线</span>
+        </button>
+      </form>
+    </aside>
+
+    <section class="map-section" id="map-section">
+      <div id="map-container"></div>
+      <div class="map-loading-overlay" id="map-loading" style="display:none;">
+        <div class="map-loading-content">
+          <div class="cycling-spinner">
+            <svg width="48" height="48" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
+              <circle cx="32" cy="32" r="28" fill="none" stroke="#00e676" stroke-width="3" stroke-dasharray="176" stroke-linecap="round" class="spinner-circle"/>
+            </svg>
+          </div>
+          <p class="loading-text">AI 正在规划路线...</p>
+        </div>
+      </div>
+      <div class="map-placeholder hidden" id="map-placeholder">
+        <div class="placeholder-content">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="30" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
+            <path d="M20 44 C20 28 44 20 44 36 C44 48 28 52 20 44Z" stroke="#00e676" stroke-width="2" fill="rgba(0,230,118,0.05)"/>
+            <circle cx="22" cy="42" r="4" fill="#00e676"/>
+            <circle cx="40" cy="34" r="4" fill="#ff5252"/>
+          </svg>
+          <p>输入起点和终点<br>AI 将为你规划骑行路线</p>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel panel-right" id="details-panel">
+      <div class="panel-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <h2>路线详情</h2>
+      </div>
+      <div class="details-empty" id="details-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <p>规划路线后<br>此处显示详细数据</p>
+      </div>
+      <div class="details-content" id="details-content" style="display:none;">
+        <div class="stats-grid" id="stats-grid"></div>
+        <div class="details-section">
+          <h3 class="section-title">分段导航</h3>
+          <div class="directions-list" id="directions-list"></div>
+        </div>
+        <div class="details-section">
+          <h3 class="section-title">骑行建议</h3>
+          <div class="tips-list" id="tips-list"></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/map.js" defer></script>
+  <script src="js/ui.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>

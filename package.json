@@ -1,0 +1,39 @@
+{
+  "name": "cycling-planner",
+  "version": "1.0.0",
+  "description": "AI-powered cycling route planner with Amap and DeepSeek",
+  "main": "server/index.js",
+  "bin": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "build": "pkg . --targets node22-win-x64 --output dist/cycling-planner.exe"
+  },
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      ".env"
+    ],
+    "targets": [
+      "node22-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "keywords": [
+    "cycling",
+    "route-planner",
+    "amap",
+    "deepseek"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.21.0"
+  }
+}
